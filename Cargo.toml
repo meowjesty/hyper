@@ -24,8 +24,8 @@ futures-core = { version = "0.3", default-features = false }
 futures-channel = "0.3"
 futures-util = { version = "0.3", default-features = false }
 http = "0.2"
-http-body = "=1.0.0-rc.2"
-http-body-util = { version = "=0.1.0-rc.2", optional = true }
+http-body = { git = "https://github.com/meowjesty/http-body", branch = "issue/922/http2" }
+http-body-util = { git = "https://github.com/meowjesty/http-body", branch = "issue/922/http2", optional = true }
 httpdate = "1.0"
 httparse = "1.8"
 h2 = { version = "0.3.9", optional = true }
