@@ -42,7 +42,8 @@ socket2 = { version = "0.4", optional = true }
 
 [dev-dependencies]
 futures-util = { version = "0.3", default-features = false, features = ["alloc"] }
-http-body-util = "=0.1.0-rc.2"
+# http-body-util = "=0.1.0-rc.2"
+http-body-util = { git = "https://github.com/meowjesty/http-body", branch = "issue/922/http2" }
 matches = "0.1"
 num_cpus = "1.0"
 pretty_env_logger = "0.4"
