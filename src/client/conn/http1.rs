@@ -2,7 +2,6 @@
 
 use std::error::Error as StdError;
 use std::fmt;
-use std::sync::Arc;
 
 use bytes::Bytes;
 use http::{Request, Response};
@@ -12,11 +11,9 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use super::super::dispatch;
 use crate::body::{Body, Incoming as IncomingBody};
 use crate::common::{
-    exec::{BoxSendFuture, Exec},
     task, Future, Pin, Poll,
 };
 use crate::proto;
-use crate::rt::Executor;
 use crate::upgrade::Upgraded;
 
 type Dispatcher<T, B> =
@@ -92,7 +89,7 @@ where
     pub fn poll_without_shutdown(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
         self.inner
             .as_mut()
-            .expect("algready upgraded")
+            .expect("already upgraded")
             .poll_without_shutdown(cx)
     }
 }
@@ -102,7 +99,6 @@ where
 /// After setting options, the builder is used to create a handshake future.
 #[derive(Clone, Debug)]
 pub struct Builder {
-    pub(super) exec: Exec,
     h09_responses: bool,
     h1_parser_config: ParserConfig,
     h1_writev: Option<bool>,
@@ -145,24 +141,21 @@ impl<B> SendRequest<B> {
         futures_util::future::poll_fn(|cx| self.poll_ready(cx)).await
     }
 
-    /*
-    pub(super) async fn when_ready(self) -> crate::Result<Self> {
-        let mut me = Some(self);
-        future::poll_fn(move |cx| {
-            ready!(me.as_mut().unwrap().poll_ready(cx))?;
-            Poll::Ready(Ok(me.take().unwrap()))
-        })
-        .await
-    }
-
-    pub(super) fn is_ready(&self) -> bool {
+    /// Checks if the connection is currently ready to send a request.
+    ///
+    /// # Note
+    ///
+    /// This is mostly a hint. Due to inherent latency of networks, it is
+    /// possible that even after checking this is ready, sending a request
+    /// may still fail because the connection was closed in the meantime.
+    pub fn is_ready(&self) -> bool {
         self.dispatch.is_ready()
     }
 
-    pub(super) fn is_closed(&self) -> bool {
+    /// Checks if the connection side has been closed.
+    pub fn is_closed(&self) -> bool {
         self.dispatch.is_closed()
     }
-    */
 }
 
 impl<B> SendRequest<B>
@@ -289,7 +282,6 @@ impl Builder {
     #[inline]
     pub fn new() -> Builder {
         Builder {
-            exec: Exec::Default,
             h09_responses: false,
             h1_writev: None,
             h1_read_buf_exact_size: None,
@@ -300,15 +292,6 @@ impl Builder {
             h1_preserve_header_order: false,
             h1_max_buf_size: None,
         }
-    }
-
-    /// Provide an executor to execute background HTTP1 tasks.
-    pub fn executor<E>(&mut self, exec: E) -> &mut Builder
-    where
-        E: Executor<BoxSendFuture> + Send + Sync + 'static,
-    {
-        self.exec = Exec::Executor(Arc::new(exec));
-        self
     }
 
     /// Set whether HTTP/0.9 responses should be tolerated.

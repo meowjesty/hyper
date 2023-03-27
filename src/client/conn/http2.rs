@@ -57,16 +57,18 @@ pub struct Builder {
 ///
 /// This is a shortcut for `Builder::new().handshake(io)`.
 /// See [`client::conn`](crate::client::conn) for more.
-pub async fn handshake<T, B>(
+pub async fn handshake<E, T, B>(
+    exec: E,
     io: T,
 ) -> crate::Result<(SendRequest<B>, Connection<T, B>)>
 where
+    E: Executor<BoxSendFuture> + Send + Sync + 'static,
     T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     B: Body + 'static,
     B::Data: Send,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
-    Builder::new().handshake(io).await
+    Builder::new(exec).handshake(io).await
 }
 
 // ===== impl SendRequest
@@ -90,22 +92,19 @@ impl<B> SendRequest<B> {
         futures_util::future::poll_fn(|cx| self.poll_ready(cx)).await
     }
 
-    /*
-    pub(super) async fn when_ready(self) -> crate::Result<Self> {
-        let mut me = Some(self);
-        future::poll_fn(move |cx| {
-            ready!(me.as_mut().unwrap().poll_ready(cx))?;
-            Poll::Ready(Ok(me.take().unwrap()))
-        })
-        .await
-    }
-
-    pub(super) fn is_ready(&self) -> bool {
+    /// Checks if the connection is currently ready to send a request.
+    ///
+    /// # Note
+    ///
+    /// This is mostly a hint. Due to inherent latency of networks, it is
+    /// possible that even after checking this is ready, sending a request
+    /// may still fail because the connection was closed in the meantime.
+    pub fn is_ready(&self) -> bool {
         self.dispatch.is_ready()
     }
-    */
 
-    pub(super) fn is_closed(&self) -> bool {
+    /// Checks if the connection side has been closed.
+    pub fn is_closed(&self) -> bool {
         self.dispatch.is_closed()
     }
 }
@@ -244,21 +243,15 @@ where
 impl Builder {
     /// Creates a new connection builder.
     #[inline]
-    pub fn new() -> Builder {
-        Builder {
-            exec: Exec::Default,
-            timer: Time::Empty,
-            h2_builder: Default::default(),
-        }
-    }
-
-    /// Provide an executor to execute background HTTP2 tasks.
-    pub fn executor<E>(&mut self, exec: E) -> &mut Builder
+    pub fn new<E>(exec: E) -> Builder 
     where
         E: Executor<BoxSendFuture> + Send + Sync + 'static,
     {
-        self.exec = Exec::Executor(Arc::new(exec));
-        self
+        Builder {
+            exec: Exec::new(exec),
+            timer: Time::Empty,
+            h2_builder: Default::default(),
+        }
     }
 
     /// Provide a timer to execute background HTTP2 tasks.
